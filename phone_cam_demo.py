@@ -1,6 +1,6 @@
 import cv2, numpy as np
 
-INDEX = 0  # ← スマホカメラが check_camera.py で OK だった番号
+INDEX = 1  # ← スマホカメラが check_camera.py で OK だった番号
 BACKEND = cv2.CAP_AVFOUNDATION
 FACE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 

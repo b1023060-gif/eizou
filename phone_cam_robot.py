@@ -19,55 +19,67 @@ def robotize(face_bgr: np.ndarray) -> np.ndarray:
     steel[y1:y2] = band
     return steel
 
-RISE_SEC, HOLD_SEC, RESET_SEC, TARGET = 1.2, 0.8, 0.8, 0.65
-phase, t_phase, alpha = "idle", time.time(), 0.0
+# ===== 段階的ロボ化（人→ロボ→人） =====
+RISE_SEC  = 1.2     # ロボ度を上げる時間
+HOLD_SEC  = 0.8     # ちょうど気持ち悪い辺りで静止
+RESET_SEC = 0.8     # 元に戻す時間
+TARGET    = 0.65    # 不気味停止のしきい値
 
-cap = cv2.VideoCapture(INDEX, BACKEND)
-if not cap.isOpened():
-    raise SystemExit("[ERROR] Camo(スマホ)を開けません")
+phase = "idle"      # idle -> rise -> hold -> fall
+t_phase = time.time()
+alpha  = 0.0        # 0=素顔, 1=完全ロボ
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT,720)
-cap.set(cv2.CAP_PROP_FPS, 30)
-
-print("[INFO] phone_cam_robot start (ESCで終了, rでリセット)")
 while True:
     ok, frame = cap.read()
-    if not ok: break
+    if not ok:
+        print("[WARN] フレーム取得失敗", flush=True)
+        break
 
     gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = FACE.detectMultiScale(gray, 1.2, 5, minSize=(120,120))
 
+    # 状態遷移
     now = time.time()
     if phase == "idle" and len(faces) > 0:
         phase, t_phase = "rise", now
     elif phase == "rise":
         alpha = min(1.0, (now - t_phase)/RISE_SEC)
-        if alpha >= TARGET: phase, t_phase = "hold", now
+        if alpha >= TARGET:
+            phase, t_phase = "hold", now
     elif phase == "hold":
         alpha = TARGET
         if now - t_phase >= HOLD_SEC:
             phase, t_phase = "fall", now
     elif phase == "fall":
         alpha = max(0.0, 1 - (now - t_phase)/RESET_SEC*(1/(1 - TARGET)))
-        if alpha <= 0.01: alpha, phase = 0.0, "idle"
+        if alpha <= 0.01:
+            alpha, phase = 0.0, "idle"
 
+    # 顔をロボ化（代表1人分）
     for (x, y, w, h) in faces[:1]:
         roi   = frame[y:y+h, x:x+w]
         robo  = robotize(roi)
         blend = cv2.addWeighted(roi, 1-alpha, robo, alpha, 0)
         frame[y:y+h, x:x+w] = blend
         cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,255), 2)
+        break
 
-    cv2.putText(frame, f"phase:{phase} uncanny:{alpha:.2f}", (10,28),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,200), 2)
+    # 画面情報
+    cv2.putText(frame, f"phase:{phase}  uncanny:{alpha:.2f}",
+                (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,200), 2)
 
-    cv2.imshow("phone-cam main", frame)
-    cv2.imshow("phone-cam preview", cv2.resize(frame, (320,240)))
+    # メイン表示
+    cv2.imshow("phone-cam main (ESC to quit)", frame)
+
+    # 小窓プレビュー（320x240）
+    preview = cv2.resize(frame, (320, 240))
+    cv2.imshow("phone-cam preview", preview)
 
     k = cv2.waitKey(1) & 0xFF
-    if k == 27: break
-    if k == ord('r'): phase, alpha = "idle", 0.0
+    if k == 27:  # ESC
+        break
+    elif k == ord('r'):  # リセット
+        phase, alpha = "idle", 0.0
 
 cap.release()
 cv2.destroyAllWindows()

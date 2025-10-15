@@ -1,6 +1,6 @@
 import cv2, time
 
-INDEX = 0
+INDEX = 1
 BACKEND = cv2.CAP_AVFOUNDATION
 
 cap = cv2.VideoCapture(INDEX, BACKEND)
