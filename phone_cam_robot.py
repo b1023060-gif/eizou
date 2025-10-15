@@ -1,36 +1,19 @@
 # phone_cam_robot.py
 import cv2, time, numpy as np
 
-print("[INFO] phone_cam_robot.py start", flush=True)
-
-# ===== カメラ設定（Mac） =====
-# まず index=1（Camo想定）を試し、ダメなら index=0 を試す
+INDEX  = 0  # ← スマホ( Camo ) が index=0
 BACKEND = cv2.CAP_AVFOUNDATION
-def open_cam():
-    for idx in (1, 0):
-        cap = cv2.VideoCapture(idx, BACKEND)
-        if cap.isOpened():
-            print(f"[INFO] camera opened: index={idx}", flush=True)
-            return cap
-    raise SystemExit("[ERROR] カメラを開けません（Camoが起動中か確認）")
+FACE   = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
-cap = open_cam()
-
-# ===== 顔検出器 =====
-FACE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-
-# ===== ロボ加工（軽量） =====
 def robotize(face_bgr: np.ndarray) -> np.ndarray:
     g = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
     steel = cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
-    steel = cv2.applyColorMap(steel, cv2.COLORMAP_BONE)  # 金属トーン
+    steel = cv2.applyColorMap(steel, cv2.COLORMAP_BONE)   # 金属トーン
     edges = cv2.Canny(g, 80, 160)
     steel[edges > 0] = (200, 200, 255)                    # 青白い輪郭光
-
-    # 目あたりを赤く（ざっくり上1/3〜1/2帯）
     h, w = g.shape
-    y1, y2 = h//3, h//2
-    band = steel[y1:y2]
+    y1, y2 = h//3, h//2                                   # 目の帯を赤化
+    band = steel[y1:y2].copy()
     mask = cv2.threshold(cv2.cvtColor(band, cv2.COLOR_BGR2GRAY), 60, 255, cv2.THRESH_BINARY)[1]
     band[mask > 0] = (0, 0, 255)
     steel[y1:y2] = band
